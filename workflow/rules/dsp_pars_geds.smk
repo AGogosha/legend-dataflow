@@ -296,6 +296,81 @@ rule build_pars_dsp_dplms_geds:
         "--plot-path {output.dsp_plots} "
 
 
+# This rule optimizes the dplms filter for the fixed-time-pickoff readout (dplmsEftp)
+# with an independent coefficient/pickoff grid. It writes to its own par namespace
+# (dplms_eftp) and its own table in the merged par lh5, so it coexists with
+# build_pars_dsp_dplms_geds without overwriting the dplmsEmax-optimized parameters.
+rule build_pars_dsp_dplms_eftp_geds:
+    input:
+        fft_files=os.path.join(
+            filelist_path(config), "all-{experiment}-{period}-{run}-fft-raw.filelist"
+        ),
+        peak_file=rules.build_pars_evtsel_geds.output.peak_file,
+        dsp_pars=rules.build_pars_dsp_pz_geds.output.dsp_pars,
+        inplots=rules.build_pars_dsp_pz_geds.output.dsp_plots,
+    output:
+        dsp_pars=temp(get_pattern_pars_tmp_channel(config, "dsp", "dplms_eftp")),
+        dsp_pars_lh5=temp(
+            get_pattern_pars_tmp_channel(config, "dsp", "dplms_eftp", extension="lh5")
+        ),
+        dsp_plots=temp(get_pattern_plts_tmp_channel(config, "dsp", "dplms_eftp")),
+    log:
+        get_pattern_log_channel(config, "pars_dsp_dplms_eftp", time),
+    benchmark:
+        get_pattern_benchmark_channel(config, "pars_dsp_dplms_eftp", time)
+    group:
+        "par-dsp"
+    resources:
+        runtime=300,
+    params:
+        config_file=lambda wildcards: get_config_files(
+            dataflow_configs_texdb,
+            wildcards.timestamp,
+            "cal",
+            wildcards.channel,
+            "pars_dsp_dplms_eftp",
+            "dplms_pars",
+        ),
+        processing_chain=lambda wildcards: get_config_files(
+            dataflow_configs_texdb,
+            wildcards.timestamp,
+            "cal",
+            wildcards.channel,
+            "pars_dsp_dplms_eftp",
+            "proc_chain",
+        ),
+        log_config=lambda wildcards: get_log_config(
+            dataflow_configs_texdb,
+            wildcards.timestamp,
+            "cal",
+            "pars_dsp_dplms_eftp",
+        ),
+        raw_table_name=lambda wildcards: get_table_name(
+            channelmap_textdb,
+            config,
+            "cal",
+            wildcards.timestamp,
+            wildcards.channel,
+            "raw",
+        ),
+        configs=config_path(config),
+        channel="{channel}",
+    shell:
+        execenv_pyexe(config, "par-geds-dsp-dplms-eftp") + "--peak-file {input.peak_file} "
+        "--fft-raw-filelist {input.fft_files} "
+        "--database {input.dsp_pars} "
+        "--inplots {input.inplots} "
+        "--log {log} "
+        "--log-config {params.log_config} "
+        "--config-file {params.config_file} "
+        "--channel {params.channel} "
+        "--processing-chain {params.processing_chain} "
+        "--raw-table-name {params.raw_table_name} "
+        "--dsp-pars {output.dsp_pars} "
+        "--lh5-path {output.dsp_pars_lh5} "
+        "--plot-path {output.dsp_plots} "
+
+
 # This rule builds the optimal energy filter parameters for the dsp using calibration dsp files
 rule build_pars_dsp_eopt_geds:
     input:
@@ -439,6 +514,7 @@ build_in_channel_merge_rules(
         rules.build_pars_dsp_nopt_geds,
         rules.build_pars_dsp_svm_geds,
         rules.build_pars_dsp_dplms_geds,
+        rules.build_pars_dsp_dplms_eftp_geds,
     ],
     "dsp",
 )
